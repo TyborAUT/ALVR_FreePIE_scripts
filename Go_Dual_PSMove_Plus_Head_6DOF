@@ -6,8 +6,8 @@
 # /_/    \_\______\/   |_|  \_\ |_|  |_|  \___|\___|_|   |_____|______|
 #
 # PS Move Controller (right) + PS Move Controller (left) + PS Move Controller Position (Head)
-#
-#
+# Requires: 3x Move controllers, 2 for hands 1 attached to HMD, 1+ PS3EYE Camera
+# 
 #  - PS Move Controller (left)
 #      trigger  -> "trigger"
 #      square   -> "application_menu"
@@ -231,28 +231,4 @@ alvr.buttons[1][alvr.Id("trigger")] = alvr.input_buttons[alvr.InputId("trigger")
 alvr.buttons[1][alvr.Id("system")] = alvr.input_buttons[alvr.InputId("back")]
 alvr.trigger[1] = 1.0 if alvr.buttons[1][alvr.Id("trigger")] else 0.0
 
-#diagnostics.watch(movement_active)
-if movement_active:
-    # use trackpad for movement
-    # fly mode
-    # press upper half of trackpad to forward. bottom half to back
-    if alvr.input_buttons[alvr.InputId("trackpad_touch")]:
-        outvec = rotatevec(alvr.input_controller_orientation, [0, 0, -1, 0])
-        speed = 0.0
-        #diagnostics.watch(alvr.input_trackpad[1])
-        if (alvr.input_trackpad[1] > 0.5) or (alvr.input_trackpad[1] < -0.5):
-            speed = 0.002 * sign(alvr.input_trackpad[1])
-        #diagnostics.watch(speed)
-        offset[0] += speed * outvec[0]
-        offset[1] += speed * outvec[1]
-        offset[2] += speed * outvec[2]
-    # reset movement by pressing trackpad in the center
-    if alvr.input_buttons[alvr.InputId("trackpad_click")]:
-        offset = [0.0, 0.0, 0.0]
-else:
-    # map trackpad to controller
-    alvr.buttons[0][alvr.Id("trackpad_touch")] = alvr.input_buttons[alvr.InputId("trackpad_touch")]
-    alvr.buttons[0][alvr.Id("trackpad_click")] = alvr.input_buttons[alvr.InputId("trackpad_click")]
-    alvr.trackpad[0][0] = alvr.input_trackpad[0]
-    alvr.trackpad[0][1] = alvr.input_trackpad[1]
 
