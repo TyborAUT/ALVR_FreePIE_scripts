@@ -6,8 +6,8 @@
 # /_/    \_\______\/   |_|  \_\ |_|  |_|  \___|\___|_|   |_____|______|
 #
 # PS Move Controller (right) + PS Move Controller (left) + PS Move Controller Position (Head)
-# Requires: 3x Move controllers, 2 for hands 1 attached to HMD, 1+ PS3EYE Camera
-# 
+#
+#
 #  - PS Move Controller (left)
 #      trigger  -> "trigger"
 #      square   -> "application_menu"
@@ -129,23 +129,23 @@ def updatePSMove():
     alvr.head_position[0] = freePieIO[HMD].x /100
     alvr.head_position[1] = (freePieIO[HMD].y /100) + .1
     alvr.head_position[2] = (freePieIO[HMD].z /100) - 0.1
-    #diagnostics.watch(alvr.head_position[0])
+    diagnostics.watch(alvr.head_position[0])
 
     # get Left PS Move controller orientation
     left_yaw   = freePieIO[LEFT_CONTROLLER].yaw    
     left_pitch = freePieIO[LEFT_CONTROLLER].pitch
     left_roll  = freePieIO[LEFT_CONTROLLER].roll
-   # diagnostics.watch(left_pitch)
-   # diagnostics.watch(left_roll)
-   # diagnostics.watch(left_yaw)
+    diagnostics.watch(left_pitch)
+    diagnostics.watch(left_roll)
+    diagnostics.watch(left_yaw)
     
     # get Right PS Move controller orientation
     right_yaw   = freePieIO[RIGHT_CONTROLLER].yaw    
     right_pitch = freePieIO[RIGHT_CONTROLLER].pitch
     right_roll  = freePieIO[RIGHT_CONTROLLER].roll
-   # diagnostics.watch(right_pitch)
-   # diagnostics.watch(right_roll)
-   # diagnostics.watch(right_yaw)
+    diagnostics.watch(right_pitch)
+    diagnostics.watch(right_roll)
+    diagnostics.watch(right_yaw)
     
     # virtual hand orientation (convert from PS Move euler convention to ALVR)
     q_hand_orientation = psm_euler2quaternion([left_yaw, left_pitch, left_roll])
@@ -157,23 +157,23 @@ def updatePSMove():
     alvr.controller_orientation[0][0] = left_yaw
     alvr.controller_orientation[0][1] = left_pitch
     alvr.controller_orientation[0][2] = left_roll
-    #diagnostics.watch(alvr.controller_orientation[0][0])
+    diagnostics.watch(alvr.controller_orientation[0][0])
     
     #set right controller orientation
     alvr.controller_orientation[1][0] = right_yaw
     alvr.controller_orientation[1][1] = right_pitch
     alvr.controller_orientation[1][2] = right_roll
-    #diagnostics.watch(alvr.controller_orientation[1][0])
+    diagnostics.watch(alvr.controller_orientation[1][0])
     
     # get PS Move controller trigger & buttons
     left_trigger = freePieIO[3].yaw
     left_buttons = int(freePieIO[3].x)
     right_trigger = freePieIO[3].pitch
     right_buttons = int(freePieIO[3].y)
-    #diagnostics.watch(left_buttons)
-    #diagnostics.watch(left_trigger)
-    #diagnostics.watch(right_buttons)
-    #diagnostics.watch(right_trigger)
+    diagnostics.watch(left_buttons)
+    diagnostics.watch(left_trigger)
+    diagnostics.watch(right_buttons)
+    diagnostics.watch(right_trigger)
     
     # map PS Move buttons to left controller
     alvr.buttons[0][alvr.Id("trigger")] = left_trigger
@@ -182,8 +182,7 @@ def updatePSMove():
     alvr.buttons[0][alvr.Id("back")]             = left_buttons & 0b00000010 > 0 # triangle
     alvr.buttons[0][alvr.Id("grip")]             = left_buttons & 0b00000100 > 0 # cross
     alvr.buttons[0][alvr.Id("start")]            = left_buttons & 0b00001000 > 0 # circle
-    alvr.buttons[0][alvr.Id("trackpad_click")]   = left_buttons & 0b00010000 > 0 # move btn
-    #movement_active                              = left_buttons & 0b00010000 > 0 # needs better touchpad emulation code so just a click for now
+    alvr.buttons[0][alvr.Id("trackpad_click")]   = left_buttons & 0b00010000 > 0 # needs better touchpad emulation code so just a click for now
     alvr.buttons[0][alvr.Id("system")]           = left_buttons & 0b00100000 > 0 # PS btn
     
     # map PS Move buttons to right controller
@@ -193,8 +192,7 @@ def updatePSMove():
     alvr.buttons[1][alvr.Id("back")]             = right_buttons & 0b00000010 > 0 # triangle
     alvr.buttons[1][alvr.Id("grip")]             = right_buttons & 0b00000100 > 0 # cross
     alvr.buttons[1][alvr.Id("start")]            = right_buttons & 0b00001000 > 0 # circle
-    alvr.buttons[1][alvr.Id("trackpad_click")]   = left_buttons & 0b00010000 > 0 # move btn
-    #movement_active                              = right_buttons & 0b00010000 > 0 # move btn
+    alvr.buttons[1][alvr.Id("trackpad_click")]   = left_buttons & 0b00010000 > 0 # needs better touchpad emulation code so just a click for now
     alvr.buttons[1][alvr.Id("system")]           = right_buttons & 0b00100000 > 0 # PS btn
 
 if starting:
@@ -215,20 +213,21 @@ if starting:
 alvr.controller_position[0][0] = freePieIO[LEFT_CONTROLLER].x/100
 alvr.controller_position[0][1] = freePieIO[LEFT_CONTROLLER].y/100 + HAND_OFFSET
 alvr.controller_position[0][2] = freePieIO[LEFT_CONTROLLER].z/100
-#diagnostics.watch(alvr.controller_position[0][0])
+diagnostics.watch(alvr.controller_position[0][0])
 
 alvr.buttons[0][alvr.Id("trigger")] = alvr.input_buttons[alvr.InputId("trigger")]
 alvr.buttons[0][alvr.Id("system")] = alvr.input_buttons[alvr.InputId("back")]
-alvr.trigger[0] = 1.0 if alvr.buttons[0][alvr.Id("trigger")] else 0.0
+diagnostics.watch(alvr.trigger[0])
+#alvr.trigger[0] = 1.0 if alvr.buttons[0][alvr.Id("trigger")] else 0.0
 
 #Map the orientation and position to the right controller
 alvr.controller_position[1][0] = freePieIO[RIGHT_CONTROLLER].x/100
 alvr.controller_position[1][1] = freePieIO[RIGHT_CONTROLLER].y/100 + HAND_OFFSET
 alvr.controller_position[1][2] = freePieIO[RIGHT_CONTROLLER].z/100
-#diagnostics.watch(alvr.controller_position[1][0])
+diagnostics.watch(alvr.controller_position[1][0])
 
 alvr.buttons[1][alvr.Id("trigger")] = alvr.input_buttons[alvr.InputId("trigger")]
 alvr.buttons[1][alvr.Id("system")] = alvr.input_buttons[alvr.InputId("back")]
-alvr.trigger[1] = 1.0 if alvr.buttons[1][alvr.Id("trigger")] else 0.0
-
+diagnostics.watch(alvr.trigger[1])
+#alvr.trigger[1] = 1.0 if alvr.buttons[1][alvr.Id("trigger")] else 0.0
 
