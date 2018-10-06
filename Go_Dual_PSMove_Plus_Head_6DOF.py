@@ -25,10 +25,13 @@
 
 import math
 
+
 LEFT_CONTROLLER = 0
 RIGHT_CONTROLLER = 1
 HMD = 2
 HAND_OFFSET = .3 #Hands will be too close to the floor (value is in meters)
+
+
 
 def sign(x): return 1 if x >= 0 else -1
 
@@ -176,7 +179,7 @@ def updatePSMove():
     diagnostics.watch(right_trigger)
     
     # map PS Move buttons to left controller
-    alvr.buttons[0][alvr.Id("trigger")] = left_trigger
+    #alvr.buttons[0][alvr.Id("trigger")] = left_trigger
     alvr.trigger[0] = left_trigger
     alvr.buttons[0][alvr.Id("application_menu")] = left_buttons & 0b00000001 > 0 # square
     alvr.buttons[0][alvr.Id("back")]             = left_buttons & 0b00000010 > 0 # triangle
@@ -186,17 +189,19 @@ def updatePSMove():
     alvr.buttons[0][alvr.Id("system")]           = left_buttons & 0b00100000 > 0 # PS btn
     
     # map PS Move buttons to right controller
-    alvr.buttons[1][alvr.Id("trigger")] = right_trigger
+    #alvr.buttons[1][alvr.Id("trigger")] = right_trigger
     alvr.trigger[1] = right_trigger
     alvr.buttons[1][alvr.Id("application_menu")] = right_buttons & 0b00000001 > 0 # square
     alvr.buttons[1][alvr.Id("back")]             = right_buttons & 0b00000010 > 0 # triangle
     alvr.buttons[1][alvr.Id("grip")]             = right_buttons & 0b00000100 > 0 # cross
     alvr.buttons[1][alvr.Id("start")]            = right_buttons & 0b00001000 > 0 # circle
-    alvr.buttons[1][alvr.Id("trackpad_click")]   = left_buttons & 0b00010000 > 0 # needs better touchpad emulation code so just a click for now
+    alvr.buttons[1][alvr.Id("trackpad_click")]   = right_buttons & 0b00010000 > 0 # needs better touchpad emulation code so just a click for now
     alvr.buttons[1][alvr.Id("system")]           = right_buttons & 0b00100000 > 0 # PS btn
 
 if starting:
     movement_active = False
+
+    
     offset = [0.0, 0.0, 0.0]
     
     # enable 2 controllers in ALVR
@@ -216,7 +221,7 @@ alvr.controller_position[0][2] = freePieIO[LEFT_CONTROLLER].z/100
 diagnostics.watch(alvr.controller_position[0][0])
 
 alvr.buttons[0][alvr.Id("trigger")] = alvr.input_buttons[alvr.InputId("trigger")]
-alvr.buttons[0][alvr.Id("system")] = alvr.input_buttons[alvr.InputId("back")]
+#alvr.buttons[0][alvr.Id("system")] = alvr.input_buttons[alvr.InputId("back")]
 diagnostics.watch(alvr.trigger[0])
 #alvr.trigger[0] = 1.0 if alvr.buttons[0][alvr.Id("trigger")] else 0.0
 
@@ -227,7 +232,7 @@ alvr.controller_position[1][2] = freePieIO[RIGHT_CONTROLLER].z/100
 diagnostics.watch(alvr.controller_position[1][0])
 
 alvr.buttons[1][alvr.Id("trigger")] = alvr.input_buttons[alvr.InputId("trigger")]
-alvr.buttons[1][alvr.Id("system")] = alvr.input_buttons[alvr.InputId("back")]
+#alvr.buttons[1][alvr.Id("system")] = alvr.input_buttons[alvr.InputId("back")]
 diagnostics.watch(alvr.trigger[1])
 #alvr.trigger[1] = 1.0 if alvr.buttons[1][alvr.Id("trigger")] else 0.0
 
