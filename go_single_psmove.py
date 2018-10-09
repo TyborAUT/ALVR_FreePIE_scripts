@@ -13,7 +13,7 @@
 #      trackpad -> "trackpad" or
 #                  fly mode (touch up/down to fly forward/backward of controller direction,
 #                  click center to reset movement)  
-#      back     -> "system"
+#      back     -> "application_menu"
 #
 #  - PS Move Controller (left)
 #      trigger  -> "trigger"
@@ -21,16 +21,28 @@
 #      triangle -> "back"
 #      cross    -> "grip"
 #      circle   -> "start"
-#      move btn -> activate movement (fly mode with Go Controller trackpad & direction)
+#      move btn -> selected mode dependent:
+#                    fly mode with Go Controller trackpad & direction
+#                    arm rotation with PS Move Controller up/down rotation
 #      PS btn   -> "system"
 #      start
-#      select
+#      select   -> switch between modes: MODE_FLY, MODE_ARM
+#
+# v2
+#  - implemented new virtual arm model for both controllers
+#  - new mode for arm rotation with PS Move Controller up/down rotation
+#  - changed GoC "back" btn mapping
 #
 # v1
 #  - initial script
 #
 
 import math
+from System import Array
+
+MODE_NONE = 0
+MODE_FLY  = 1
+MODE_ARM  = 2
 
 def sign(x): return 1 if x >= 0 else -1
 
@@ -98,8 +110,9 @@ def psm_euler2quaternion(yaw_pitch_roll):
     cy * cr * cp - sy * sr * sp]         # w
 
 # extract the rotation of a given axis from a quaternion
-def q_extract_axis(q, axis):
+def q_extract_axis(quat, axis):
     # q[0] = x; q[1] = y; q[2] = z; q[3] = w
+    q = [quat[0], quat[1], quat[2], quat[3]]
     if axis == 0:
         i = 1; j = 2;
     elif axis == 1:
@@ -124,8 +137,58 @@ def rotatevec(yaw_pitch_roll, vec):
 def q_rotatevec(q, vec):
     return multiply(multiply(q, vec), conj(q))
 
+# to overcome a flipped rotation beyond 90° we "normalize" the rotation
+# by rotating the other axis back to 0° -> now we get the desired angle
+# independent from orientation
+def get_normalized_roll(yaw_pitch_roll):
+    q = euler2quaternion(yaw_pitch_roll)
+    q_norm = multiply(conj(q_extract_axis(q, 1)), q)
+    q_norm = multiply(conj(q_extract_axis(q, 2)), q_norm)
+    [yaw, pitch, roll] = quaternion2euler(q_norm)
+    return roll
+
+# calculate virtual arm model with shoulder, elbow, arm forward rotation and hand
+def calc_arm_model(controller_orientation, leftright):
+    global g_arm_roll, g_arm_extend
+    
+    # hand stretches when arm is rotated forward to reach further
+    hand = [0.0, 0.0, -0.25 - 0.25*math.sin(g_arm_roll), 0.0]
+    hand = rotatevec(controller_orientation, hand)
+    
+    # left/right shoulder is fixed
+    shoulder = [0.2*leftright, -0.10, -0.05]
+    
+    # rotate virtual elbow according to arm roll
+    roll = get_normalized_roll(controller_orientation)
+    if roll < 0.0:
+        arm_roll = g_arm_roll + roll # your elbow limits your possible hand rotation
+    else:
+        arm_roll = g_arm_roll
+    if arm_roll < 0.0:
+        arm_roll = 0.0
+    elbow = rotatevec([0.0, 0.0, arm_roll], [0.0, -0.25, 0.0, 0.0])
+    elbow[0] += shoulder[0]
+    elbow[1] += shoulder[1]
+    elbow[2] += shoulder[2]
+    #diagnostics.watch(roll)
+    #diagnostics.watch(elbow[1])
+    
+    # get head orientation and calculate quaternion
+    q_head_orientation = euler2quaternion(alvr.input_head_orientation)
+    # extract only pitch out of quaternion
+    q_head_pitch = q_extract_axis(q_head_orientation, 1)
+    # rotate virtual elbow according to head pitch
+    elbow = q_rotatevec(q_head_pitch, elbow)
+    
+    # return Controller position as Array[float]
+    controller_position = Array.CreateInstance(float, 3);
+    controller_position[0] = alvr.head_position[0] + elbow[0] + hand[0]
+    controller_position[1] = alvr.head_position[1] + elbow[1] + hand[1]
+    controller_position[2] = alvr.head_position[2] + elbow[2] + hand[2]
+    return controller_position
+
 def updatePSMove():
-    global movement_active
+    global g_active_mode, g_selected_mode, g_arm_roll, g_arm_roll_old, g_origin_roll, g_buttons
     
     # get PS Move controller orientation
     yaw   = freePieIO[0].yaw    
@@ -138,22 +201,13 @@ def updatePSMove():
     # virtual hand orientation (convert from PS Move euler convention to ALVR)
     q_hand_orientation = psm_euler2quaternion([yaw, pitch, roll])
     [yaw, pitch, roll] = quaternion2euler(q_hand_orientation)
-    l_hand = q_rotatevec(q_hand_orientation, [0, 0, -0.25, 0])
-
-    # get head orientation and calculate quaternion
-    q_head_orientation = euler2quaternion(alvr.input_head_orientation)
-    # extract only pitch out of quaternion
-    q_head_pitch = q_extract_axis(q_head_orientation, 1)
-    # rotate virtual left elbow according to head pitch
-    l_elbow = q_rotatevec(q_head_pitch, [-0.2, -0.35, -0.05, 0])
-    #diagnostics.watch(l_elbow[0])
-    #diagnostics.watch(l_elbow[1])
-    #diagnostics.watch(l_elbow[2])
+    
+    #diagnostics.watch(pitch)
+    #diagnostics.watch(roll)
+    #diagnostics.watch(yaw)
     
     # set 2nd Controller position
-    alvr.controller_position[1][0] = alvr.head_position[0] + l_elbow[0] + l_hand[0]
-    alvr.controller_position[1][1] = alvr.head_position[1] + l_elbow[1] + l_hand[1]
-    alvr.controller_position[1][2] = alvr.head_position[2] + l_elbow[2] + l_hand[2]
+    alvr.controller_position[1] = calc_arm_model([yaw, pitch, roll], -1)
     # set 2nd Controller orientation
     alvr.controller_orientation[1][0] = yaw
     alvr.controller_orientation[1][1] = pitch
@@ -170,11 +224,45 @@ def updatePSMove():
     alvr.buttons[1][alvr.Id("back")]             = buttons & 0b00000010 > 0 # triangle
     alvr.buttons[1][alvr.Id("grip")]             = buttons & 0b00000100 > 0 # cross
     alvr.buttons[1][alvr.Id("start")]            = buttons & 0b00001000 > 0 # circle
-    movement_active                              = buttons & 0b00010000 > 0 # move btn
+    
+    if buttons & 0b00010000 > 0: # move btn
+        if g_active_mode == MODE_NONE:
+            if g_selected_mode == MODE_ARM:
+                # fetch current controller orientation and normalize to roll axis
+                g_origin_roll = get_normalized_roll([yaw, pitch, roll])
+                g_arm_roll_old = g_arm_roll
+        g_active_mode = g_selected_mode
+    else:
+        g_active_mode = MODE_NONE
+    #alvr.buttons[1][alvr.Id("trackpad_click")]   = buttons & 0b00010000 > 0 # move btn
     alvr.buttons[1][alvr.Id("system")]           = buttons & 0b00100000 > 0 # PS btn
+    
+    diagnostics.watch(buttons)
+    if buttons & 0b10000000 > 0: # select
+        if g_buttons & 0b10000000 == 0:
+            # pressed btn
+            if g_selected_mode == MODE_FLY:
+                g_selected_mode = MODE_ARM
+                alvr.message = "-> Arm Mode"
+            elif g_selected_mode == MODE_ARM:
+                g_selected_mode = MODE_FLY
+                alvr.message = "-> Fly Mode"
+    else:
+        if g_buttons & 0b10000000 > 0:
+            # released btn
+            alvr.message = ""
+    
+    # save button state for next run
+    g_buttons = buttons
+    diagnostics.watch(g_selected_mode)
 
 if starting:
-    movement_active = False
+    g_active_mode = MODE_NONE
+    g_selected_mode = MODE_ARM
+    g_origin_roll = 0.0
+    g_arm_roll = 0.0
+    g_arm_roll_old = 0.0
+    g_buttons = 0
     offset = [0.0, 0.0, 0.0]
     
     # enable 2 controllers in ALVR
@@ -188,22 +276,20 @@ if starting:
     freePieIO[0].update += updatePSMove
 
 # use default mapping of ALVR for Oculus Go controller
-alvr.controller_position[0][0] = alvr.input_controller_position[0] + offset[0]
-alvr.controller_position[0][1] = alvr.input_controller_position[1] + offset[1]
-alvr.controller_position[0][2] = alvr.input_controller_position[2] + offset[2]
+# set 1st Controller position
+alvr.controller_position[0] = calc_arm_model(alvr.input_controller_orientation, +1)
 alvr.controller_orientation[0][0] = alvr.input_controller_orientation[0]
 alvr.controller_orientation[0][1] = alvr.input_controller_orientation[1]
 alvr.controller_orientation[0][2] = alvr.input_controller_orientation[2]
 
 alvr.buttons[0][alvr.Id("trigger")] = alvr.input_buttons[alvr.InputId("trigger")]
-alvr.buttons[0][alvr.Id("system")] = alvr.input_buttons[alvr.InputId("back")]
+alvr.buttons[0][alvr.Id("application_menu")] = alvr.input_buttons[alvr.InputId("back")]
 alvr.trigger[0] = 1.0 if alvr.buttons[0][alvr.Id("trigger")] else 0.0
 
-#diagnostics.watch(movement_active)
-if movement_active:
-    # use trackpad for movement
+if g_active_mode == MODE_FLY:
+    alvr.message = "Fly Mode"
     # fly mode
-    # press upper half of trackpad to forward. bottom half to back
+    # press upper half of trackpad to forward into controller direction. bottom half to fly backward
     if alvr.input_buttons[alvr.InputId("trackpad_touch")]:
         outvec = rotatevec(alvr.input_controller_orientation, [0, 0, -1, 0])
         speed = 0.0
@@ -217,12 +303,29 @@ if movement_active:
     # reset movement by pressing trackpad in the center
     if alvr.input_buttons[alvr.InputId("trackpad_click")]:
         offset = [0.0, 0.0, 0.0]
+
+elif g_active_mode == MODE_ARM:
+    # fetch current controller orientation and normalize to roll axis
+    c_roll = get_normalized_roll(alvr.controller_orientation[1])
+ 
+    g_arm_roll = g_arm_roll_old + (c_roll - g_origin_roll)
+     
+    if g_arm_roll > math.pi/2:
+        g_arm_roll = math.pi/2
+    elif g_arm_roll < 0.0:
+        g_arm_roll = 0.0
+    
+    alvr.message = "Arm " + "%.0f deg" % math.degrees(g_arm_roll)
+    
 else:
     # map trackpad to controller
     alvr.buttons[0][alvr.Id("trackpad_touch")] = alvr.input_buttons[alvr.InputId("trackpad_touch")]
     alvr.buttons[0][alvr.Id("trackpad_click")] = alvr.input_buttons[alvr.InputId("trackpad_click")]
     alvr.trackpad[0][0] = alvr.input_trackpad[0]
     alvr.trackpad[0][1] = alvr.input_trackpad[1]
+    
+    if g_buttons == 0:
+        alvr.message = ""
 
 alvr.head_position[0] = alvr.input_head_position[0] + offset[0]
 alvr.head_position[1] = alvr.input_head_position[1] + offset[1]
